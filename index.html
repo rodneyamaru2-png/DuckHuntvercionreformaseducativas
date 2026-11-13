@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Caza de Patos · Reformas Educativas de Bolivia</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:#1d1a2f;color:#fff;font:14px/1.3 ui-monospace,Menlo,Consolas,monospace}
+#g{max-width:900px;margin:0 auto;padding:8px}
+#hud{display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;font-weight:700;padding:4px 2px}
+#hud button{background:#fff2;border:2px solid #fff6;color:#fff;border-radius:6px;cursor:pointer;font-size:16px}
+#lives{letter-spacing:2px}
+#barw{height:10px;background:#0006;border-radius:5px;overflow:hidden;margin:4px 0}
+#bar{height:100%;width:100%;background:#ffd23f;transition:background .3s}
+#q{background:#0b1f3a;border:3px solid #ffd23f;border-radius:8px;padding:10px 12px;font-size:16px;min-height:78px}
+#q small{color:#ffd23f}
+#msg{min-height:20px;text-align:center;padding:4px;color:#ffd23f}
+#field{position:relative;height:340px;overflow:hidden;border:4px solid #000;border-radius:8px;background:linear-gradient(#4fb6ff,#bfe8ff 80%)}
+#sky{position:absolute;inset:0 0 70px 0;cursor:crosshair}
+.duck{position:absolute;left:0;display:flex;align-items:center;gap:6px;cursor:crosshair;user-select:none;z-index:3;transition:top .8s ease-in,opacity .8s}
+.duck .b{font-size:40px;display:inline-block}
+.duck .l{background:#fff;color:#111;font:12px/1.2 system-ui,sans-serif;padding:4px 6px;border:2px solid #111;border-radius:6px;width:min(220px,48vw)}
+.duck.fall{top:280px!important;opacity:0}
+.duck.good .l{background:#7dff8a;border-color:#0a7a1b}
+.duck.bad .l{background:#ff8a8a;border-color:#a00}
+#grass{position:absolute;left:0;right:0;bottom:0;height:70px;z-index:4;background:repeating-linear-gradient(90deg,#2f9e2f 0 14px,#3cb83c 14px 28px);border-top:6px solid #1c6b1c}
+#dog{position:absolute;left:50%;bottom:55px;z-index:2;font-size:44px;line-height:1;text-align:center;transform:translate(-50%,130%);transition:transform .3s}
+#dog.up{transform:translate(-50%,0)}
+#dog b{display:block;font-size:12px;color:#000;background:#fff;border-radius:6px;padding:2px 6px;margin-top:2px}
+#rw{position:absolute;left:50%;top:40%;z-index:9;transform:translate(-50%,-50%) scale(0);background:#ffd23f;color:#222;border:4px solid #000;border-radius:12px;padding:12px 18px;text-align:center;font-weight:700;font-size:16px;transition:transform .25s;pointer-events:none}
+#rw.on{transform:translate(-50%,-50%) scale(1)}
+#ov{position:absolute;inset:0;z-index:10;background:#0b1f3af2;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;gap:8px}
+#ov[hidden]{display:none}
+#ov h2{margin:0;color:#ffd23f;font-size:24px}
+#ov p{margin:0;max-width:560px}
+#ov button{margin-top:8px;font:700 16px ui-monospace,monospace;background:#ffd23f;color:#111;border:3px solid #000;border-radius:8px;padding:10px 20px;cursor:pointer}
+@media (prefers-reduced-motion:reduce){.duck,#dog,#rw{transition:none}}
+</style></head><body>
+<div id="g">
+<div id="hud">
+<span>Nivel <b id="lv">1</b>/5</span><span>Puntos <b id="sc">0</b></span>
+<span id="lives"></span><span>⏱ <b id="tm">0</b>s</span>
+<button id="mu" title="Música">🔊</button>
+</div>
+<div id="barw"><div id="bar"></div></div>
+<div id="q">…</div>
+<div id="msg"></div>
+<div id="field">
+<div id="sky"></div><div id="dog"><span id="dt"></span><b id="db"></b></div><div id="grass"></div>
+<div id="rw"></div>
+<div id="ov"></div>
+</div>
+</div>
+<script>
+// Formato: pregunta|A|B|C|D|índice correcto (0-3)
+const Q=[
+"¿Quién encabezó la misión pedagógica belga de 1909?|Franz Tamayo|Georges Rouma|Elizardo Pérez|Jaime Escalante|1",
+"¿Primera institución de formación docente fundada el 6 de junio de 1909?|Escuela Ayllu de Warisata|Escuela Nacional de Maestros de Sucre|Instituto Normal Superior Simón Bolívar|Normal Rural de Caiza “D”|1",
+"¿Qué corriente inspiró la Reforma de 1909?|Materialismo histórico|Positivismo y escuela activa|Sociocomunitarismo productivo|Escolasticismo colonial|1",
+"¿Quién criticó los modelos europeos en Creación de la Pedagogía Nacional?|Alcides Arguedas|Carlos Medinaceli|Franz Tamayo|Tristán Marof|2",
+"¿Característica del currículo de Georges Rouma?|Enseñanza solo en lenguas originarias|Laicismo, coeducación y enfoque científico-experimental|Religión obligatoria|Descentralización municipal|1",
+"¿En qué gobierno se inició la modernización que trajo la Misión Belga?|Ismael Montes|Víctor Paz Estenssoro|Hernán Siles Zuazo|Mariano Melgarejo|0",
+"¿Qué escuelas rurales se crearon desde 1910 para “civilizar” al indígena?|Escuelas de Cristo y ambulantes|Universidades Indígenas|Núcleos Escolares Campesinos|Unidades Educativas Plenas|0",
+"¿Qué buscaba superar la Reforma Liberal?|Exceso de presupuesto estatal|Enseñanza memorística, escolástica y controlada por la Iglesia|Autonomía universitaria|Bilingüismo en las ciudades|1",
+"¿Qué nivel tuvo prioridad en la reforma de Rouma?|Primaria y formación de preceptores|Posgrado|Educación alternativa|Técnica superior|0",
+"¿Qué se promovió junto a la educación física y cívica?|Batallones escolares y gimnasia científica|Consejos social-comunitarios|Juntas escolares de participación popular|Sindicatos estudiantiles|0",
+"¿Contexto del Código de la Educación Boliviana de 1955?|Guerra del Chaco|Revolución Nacional de 1952|Retorno a la democracia en 1982|Asamblea Constituyente de 2006|1",
+"¿Quién presidió la Comisión que redactó el Código de 1955?|Víctor Paz Estenssoro|Fernando Diez de Medina|Juan Lechín Oquendo|Enrique Ipiña Melgar|1",
+"Según el Código de 1955, la educación es…|Servicio privado regulado por el mercado|La más alta función del Estado, universal, gratuita y obligatoria|Responsabilidad exclusiva de los municipios|Atribución delegada a la Iglesia|1",
+"¿Principio que buscaba eliminar la brecha entre élite y mayorías en 1955?|La Escuela Única|La Educación Intracultural|El Tronco Común Curricular|La Descentralización Administrativa|0",
+"¿Analfabetismo aproximado según el Censo de 1950?|25%|45%|69.5%|90%|2",
+"¿Cómo dividió el Código de 1955 el sistema escolar?|Fiscal y Privada|Urbana y Fundamental (Rural)|Regular y Alternativa|Occidental e Indigenal|1",
+"¿De qué ministerio dependió la Educación Fundamental (campesina)?|Hacienda|Asuntos Campesinos|Defensa|Desarrollo Humano|1",
+"¿Qué experiencia de los años 30 inspiró la nuclearización escolar de 1955?|Escuela Ayllu de Warisata|Colegio Nacional Ayacucho|Misión Belga de Sucre|Instituto Americano|0",
+"¿Visión del Código de 1955 sobre la población indígena?|Fortalecer autonomías originarias|Castellanización y asimilación como “campesino”|Trilingüismo obligatorio|Currículos separados por etnia|1",
+"¿Carácter ideológico del Artículo 1 del Código de 1955?|Neoliberal y globalizador|Antiimperialista y antifeudal|Descolonizador y comunitario|Confesional y conservador|1",
+"¿Duración de la primaria en el Código de 1955?|4 años|6 años|8 años|12 años|1",
+"¿Qué organismo sindical participó en la comisión redactora de 1955?|Confederación de Empresarios Privados|COB y federaciones del magisterio|CEPOs|Juntas Vecinales|1",
+"¿Fecha y gobierno de la Ley 1565?|7 de julio de 1994, Sánchez de Lozada|20 de diciembre de 2010, Evo Morales|6 de agosto de 1985, Paz Estenssoro|15 de octubre de 1998, Banzer|0",
+"¿Ejes transversales de la Ley 1565?|Descolonización y productividad|Interculturalidad y participación popular|Laicismo y educación militar|Alfabetización y castellanización|1",
+"¿Enfoque pedagógico de la Reforma de 1994?|Conductismo tradicional|Constructivismo centrado en el estudiante y competencias|Pedagogía liberadora sociocomunitaria|Instrucción enciclopédica|1",
+"¿Estructura de la primaria bajo la Ley 1565?|6 grados en dos ciclos|8 años en tres ciclos (básicos, esenciales, aplicados)|12 años de escolaridad única|Semestres modulares|1",
+"¿Cargo que reemplazó a los supervisores escolares en 1994?|Directores Distritales|Asesores Pedagógicos|Gestores Comunitarios|Inspectores Generales|1",
+"¿Ley de 1994 articulada para transferir infraestructura escolar a los municipios?|Ley INRA|Ley de Participación Popular (1551)|Ley de Capitalización|Ley de Descentralización Administrativa|1",
+"¿Modalidad lingüística de la Ley 1565?|Monolingüe en castellano|Educación Intercultural Bilingüe (EIB)|Trilingüe con inglés|Solo lengua materna|1",
+"¿Órganos de control social creados por la Ley 1565?|Juntas Escolares|Consejos Educativos Social Comunitarios|Comités de Vigilancia Pedagógica|Asociaciones de Padres de Familia|0",
+"¿Sistema de evaluación de la calidad creado con la Ley 1565?|Bachillerato Técnico Humanístico|SIMECAL|PROFOCOM|Olimpiadas Científicas Plurinacionales|1",
+"¿Documentos de fines de los 80 (Enrique Ipiña) antecedentes de la Ley 1565?|Libro Blanco y Libro Rosado|Código Banzer y Plan Decenal|Declaración de Warisata y Manifiesto de Tiahuanaco|Currículo Base y Regionalizado|0",
+"¿Crítica principal del magisterio a la Ley 1565?|Eliminaba la educación privada|Respondía a recetas de organismos internacionales y priorizaba la primaria|Imponía religión obligatoria|Estatizaba universidades privadas|1",
+"¿Cómo quedaron los Institutos Normales tras la Reforma de 1994?|Escuelas Superiores de Formación de Maestros|Institutos Normales Superiores (INS), a veces con universidades|Colegios Universitarios de Pedagogía|Centros de Capacitación Docente Rural|1",
+"¿Fecha de promulgación de la Ley 070 “Avelino Siñani - Elizardo Pérez”?|22 de enero de 2009|20 de diciembre de 2010|2 de agosto de 2011|6 de junio de 2012|1",
+"¿Modelo educativo de la Ley 070?|Constructivista Intercultural|Sociocomunitario Productivo (MESCP)|Escuela Única Nacionalista|Basado en Competencias Globales|1",
+"¿Bases de la educación según la Ley 070?|Descolonizadora, liberadora, revolucionaria, antiimperialista, despatriarcalizadora y transformadora|Neoliberal, competitiva, privatizadora y homogénea|Confesional, monolingüe, urbana y académica|Centralista, enciclopédica y selectiva|0",
+"¿Cómo se estructura el Sistema Educativo Plurinacional?|Urbana, Rural y Universitaria|Regular, Alternativa y Especial, y Superior de Formación Profesional|Primaria, Secundaria y Técnica|Fiscal, de Convenio y Privada|1",
+"¿Cuatro dimensiones de la formación integral en el MESCP?|Leer, Escribir, Calcular y Pensar|Ser, Saber, Hacer y Decidir|Conocer, Comprender, Aplicar y Evaluar|Cuerpo, Mente, Espíritu y Comunidad|1",
+"¿Articulación curricular de la Ley 070?|Tronco Común y Ramas Departamentales|Currículo Base, Regionalizado y Diversificado|Plan Nacional y Plan Municipal|Currículo Básico y Complementario|1",
+"¿Cuatro campos de saberes y conocimientos de la Ley 070?|Matemáticas, Lenguaje, Naturales y Sociales|Cosmos y Pensamiento; Vida, Tierra y Territorio; Comunidad y Sociedad; Ciencia, Tecnología y Producción|Humanidades, Exactas, Artes y Educación Física|Filosofía, Ecología, Historia y Economía|1",
+"¿Título adicional al concluir la secundaria con la Ley 070?|Bachiller en Humanidades únicamente|Bachiller Técnico Humanístico con grado de Técnico Medio|Licenciado en Ciencias Aplicadas|Perito Industrial|1",
+"¿Cuatro momentos metodológicos del MESCP en el aula?|Inicio, Desarrollo, Cierre y Evaluación|Práctica, Teoría, Valoración y Producción|Observación, Hipótesis, Experimentación y Conclusión|Motivación, Explicación, Ejercitación y Examen|1",
+"¿Tratamiento de lenguas en la Ley 070?|Castellano obligatorio y extranjera optativa|Plurilingüe: originaria, castellano y una lengua extranjera|Originaria en lo rural y castellano en lo urbano|Se eliminan las lenguas extranjeras|1",
+"¿Rango de la formación inicial docente en las ESFM (Ley 070)?|Técnico Superior|Licenciatura (5 años)|Maestría|Bachillerato Pedagógico|1",
+"¿Carácter religioso de la educación fiscal y de convenio (Ley 070)?|Católica obligatoria|Laica y pluralista, respetando espiritualidad y cosmovisiones|Atea|Evangélica y tradicional|1",
+"¿Qué reforma eliminó por primera vez la distinción entre Educación Urbana y Rural?|Reforma Liberal de 1909|Código de 1955|Ley 1565 de 1994|Ley 070 de 2010|2",
+"¿Qué comparten Warisata (1931), el Código de 1955 y la Ley 070 (2010)?|Vincular la escuela con el trabajo y la producción|Constructivismo importado de España|Administración municipal de los ítems docentes|Financiamiento exclusivo del Banco Mundial|0",
+"¿Secuencia cronológica correcta de las cuatro reformas?|1955 → 1909 → 2010 → 1994|1909 → 1955 → 1994 → 2010|1909 → 1994 → 1955 → 2010|1994 → 1909 → 1955 → 2010|1",
+"¿Evolución conceptual de la diversidad cultural en las reformas?|Plurilingüismo en 1909 a castellanización en 2010|Asimilación (1909, 1955) → interculturalidad bilingüe (1994) → intraculturalidad, interculturalidad y descolonización (2010)|Siempre el mismo enfoque pluricultural|Descolonización en 1955 a positivismo en 2010|1"
+];
+const LV=[["1909 · Reforma Liberal",0,10],["1955 · Código de la Educación",10,22],["1994 · Ley 1565",22,34],["2010 · Ley 070",34,46],["Jefe final · Síntesis",46,50]];
+const MED=["de Bronce","de Plata","de Oro","de Platino","de Diamante","Warisata","Avelino Siñani","Elizardo Pérez","Georges Rouma","de Maestra Suprema"];
+const $=s=>document.querySelector(s);
+const sh=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+let st={lv:0,lives:3,score:0,t:0,T:20,lock:1,on:0,ok:0,streak:0,list:[],qi:0},ducks=[],last=0,tick=0;
+
+// ---------- Audio (todo sintetizado, música original sin copyright) ----------
+let AC,music=true,mi=0,mt=null;
+function ac(){AC=AC||new(window.AudioContext||window.webkitAudioContext)();if(AC.state==="suspended")AC.resume();return AC}
+function tone(f,d,type="square",v=.08,t0=0,fe){try{const a=ac(),o=a.createOscillator(),g=a.createGain(),s=a.currentTime+t0;o.type=type;o.frequency.setValueAtTime(f,s);if(fe)o.frequency.exponentialRampToValueAtTime(fe,s+d);g.gain.setValueAtTime(v,s);g.gain.exponentialRampToValueAtTime(.001,s+d);o.connect(g);g.connect(a.destination);o.start(s);o.stop(s+d)}catch(e){}}
+const sfx={
+shot:()=>tone(900,.14,"sawtooth",.12,0,70),
+hit:()=>{tone(660,.1);tone(990,.15,"square",.08,.08)},
+miss:()=>{tone(220,.5,"sawtooth",.1,0,60);tone(150,.5,"square",.07,.25,50)},
+tick:()=>tone(1100,.05,"square",.05),
+reward:()=>[523,659,784,1047,1319,1568].forEach((f,i)=>tone(f,.2,"square",.09,i*.08)),
+over:()=>[392,330,262,196].forEach((f,i)=>tone(f,.3,"triangle",.12,i*.25))
+};
+const MEL=[262,330,392,330,440,392,330,294,262,330,392,523,440,392,330,294];
+const BAS=[131,131,175,196];
+function startMusic(){stopMusic();if(!music)return;mt=setInterval(()=>{if(!music)return;const n=MEL[mi%16];tone(n,.2,"triangle",.045);if(mi%4===0)tone(BAS[(mi/4|0)%4],.5,"sine",.07);mi++},200-st.lv*10)}
+function stopMusic(){clearInterval(mt);mt=null}
+$("#mu").onclick=()=>{music=!music;$("#mu").textContent=music?"🔊":"🔇";music?startMusic():stopMusic()};
+
+// ---------- Interfaz ----------
+function hud(){$("#lv").textContent=st.lv+1;$("#sc").textContent=st.score;$("#lives").textContent="❤️".repeat(st.lives)+"🖤".repeat(Math.max(0,5-st.lives));$("#tm").textContent=Math.ceil(Math.max(st.t,0));$("#bar").style.width=Math.max(0,st.t/st.T*100)+"%";$("#bar").style.background=st.t<5?"#ff4d4d":"#ffd23f"}
+function ov(h,btn,fn){const o=$("#ov");o.innerHTML=h+(btn?`<button>${btn}</button>`:"");o.hidden=false;if(btn)o.querySelector("button").onclick=()=>{o.hidden=true;ac();fn()}}
+function dog(e,t){$("#dt").textContent=e;$("#db").textContent=t;$("#dog").classList.add("up");setTimeout(()=>$("#dog").classList.remove("up"),1500)}
+function reward(h){const r=$("#rw");r.innerHTML=h;r.classList.add("on");sfx.reward();setTimeout(()=>r.classList.remove("on"),1900)}
+
+function intro(){ov(`<h2>🦆 Caza de Patos</h2><p>Lee la pregunta y dispara al pato que lleva la <b>respuesta correcta</b>. Si fallas o se acaba el tiempo, pierdes una vida ❤️.</p><p>Cada 5 aciertos ganas una medalla 🏅 y una vida extra. Las rachas dan puntos bonus 🔥. Son 5 niveles, uno por cada reforma.</p><p><small>Música y sonidos originales generados en tu navegador, sin copyright.</small></p>`,"¡Jugar!",()=>{st={lv:0,lives:3,score:0,t:0,T:20,lock:1,on:0,ok:0,streak:0,list:[],qi:0};startMusic();loadLevel()})}
+function loadLevel(){const[n,a,b]=LV[st.lv];st.list=sh([...Array(b-a)].map((_,i)=>a+i));st.qi=0;st.T=Math.max(14,26-st.lv*3);startMusic();hud();ov(`<h2>Nivel ${st.lv+1}</h2><p>${n}</p><p>${st.list.length} preguntas · ${st.T} segundos cada una</p>`,"¡A cazar!",nextQ)}
+
+function nextQ(){
+if(st.qi>=st.list.length)return lvDone();
+const p=Q[st.list[st.qi]].split("|"),k=+p[5];
+$("#q").innerHTML=`<small>Pregunta ${st.qi+1} de ${st.list.length}</small><br>${p[0]}`;
+$("#msg").textContent="Dispara al pato con la respuesta correcta";
+$("#sky").innerHTML="";
+const W=$("#sky").clientWidth;
+ducks=sh([0,1,2,3]).map((oi,lane)=>{
+const el=document.createElement("div");el.className="duck";el.innerHTML=`<span class="b">🦆</span><span class="l">${p[1+oi]}</span>`;el.style.top=lane*66+6+"px";
+const d={el,ok:oi===k,x:Math.random()*Math.max(0,W-280),v:(Math.random()<.5?-1:1)*(45+st.lv*18+lane*8),dead:0};
+el.onclick=e=>{e.stopPropagation();shoot(d)};$("#sky").appendChild(el);return d});
+st.t=st.T;st.lock=0;st.on=1;tick=0;hud()}
+$("#sky").onclick=()=>{if(!st.lock){sfx.shot()}};
+
+function shoot(d){if(st.lock)return;st.lock=1;sfx.shot();d&&d.ok?hit(d):miss(d)}
+function hit(d){
+d.dead=1;d.el.classList.add("fall");sfx.hit();st.streak++;st.ok++;
+const pts=100+Math.ceil(st.t)*10+(st.streak-1)*20;st.score+=pts;
+$("#msg").textContent=`🎯 ¡Cazado! +${pts} puntos`;dog("🐕🦆","¡Buen tiro!");
+const rs=[];
+if(st.ok%5===0){st.lives=Math.min(5,st.lives+1);rs.push(`🏅 Medalla ${MED[st.ok/5-1]}<br>+1 vida`)}
+if([3,5,8,12].includes(st.streak)){st.score+=st.streak*50;rs.push(`🔥 Racha ×${st.streak}<br>+${st.streak*50} puntos`)}
+if(rs.length)setTimeout(()=>reward(rs.join("<hr>")),500);
+hud();setTimeout(()=>{st.qi++;nextQ()},rs.length?2600:1700)}
+function miss(d){
+sfx.miss();st.lives--;st.streak=0;
+ducks.forEach(x=>{if(x.ok)x.el.classList.add("good")});d&&d.el.classList.add("bad");
+$("#msg").textContent=d?"✘ Fallaste. Esta era la respuesta correcta (en verde).":"⏱ ¡Se acabó el tiempo! La correcta está en verde.";
+dog("🐕😆","¡Ja ja ja!");hud();
+setTimeout(()=>{if(st.lives<=0)over();else{st.qi++;nextQ()}},2600)}
+
+function lvDone(){st.on=0;st.score+=200;hud();sfx.reward();
+if(st.lv===4)return win();
+ov(`<h2>🏆 ¡Nivel superado!</h2><p>Trofeo: ${LV[st.lv][0]}</p><p>+200 puntos de bonificación</p>`,"Siguiente nivel",()=>{st.lv++;loadLevel()})}
+function win(){stopMusic();ov(`<h2>🏆 ¡Campeón de la historia educativa!</h2><p>Completaste las cuatro reformas.</p><p>Puntaje final: <b>${st.score}</b> · Aciertos: ${st.ok}/50</p>`,"Jugar otra vez",intro)}
+function over(){st.on=0;stopMusic();sfx.over();ov(`<h2>💀 Fin del juego</h2><p>Llegaste al nivel ${st.lv+1} con ${st.score} puntos y ${st.ok} aciertos.</p><p>Repasa y vuelve a intentarlo.</p>`,"Reintentar",intro)}
+
+function loop(ts){
+const dt=Math.min((ts-last)/1000,.1);last=ts;
+if(st.on){
+const W=$("#sky").clientWidth;
+ducks.forEach(d=>{if(d.dead)return;d.x+=d.v*dt;const m=Math.max(0,W-d.el.offsetWidth);
+if(d.x<0){d.x=0;d.v=Math.abs(d.v)}if(d.x>m){d.x=m;d.v=-Math.abs(d.v)}
+d.el.style.transform=`translateX(${d.x}px)`;d.el.firstChild.style.transform=d.v>0?"scaleX(-1)":""});
+if(!st.lock){st.t-=dt;const c=Math.ceil(st.t);if(c!==tick&&st.t<=5&&st.t>0){tick=c;sfx.tick()}
+if(st.t<=0){st.t=0;shoot(null)}hud()}}
+requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+$("#q").textContent="Reformas Educativas de Bolivia";
+hud();intro();
+</script>
+</body></html>
